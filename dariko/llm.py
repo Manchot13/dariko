@@ -56,7 +56,8 @@ def _post_to_llm(messages: list[dict[str, str]], model_api_import_name: str) -> 
 
 
 def _parse_and_validate(
-    raw_json: str, pyd_model: Type[BaseModel], *, api_key: str
+    raw_json: str,
+    pyd_model: Type[BaseModel],
 ) -> BaseModel:
     """
     LLM 出力(JSON文字列)を parse & Pydantic 検証。
@@ -89,23 +90,25 @@ def _parse_and_validate(
 def ask(
     prompt: str,
     *,
-    model_api_import_name: Literal["openai", "gemini"],
+    model_api_import_name: Literal["openai", "gemini", "local"],
     output_model: Type[Any] | None = None,
 ) -> Any:
     """
     単一プロンプトを実行し、Pydantic 検証済みオブジェクトを返す。
     """
-    pyd_model = _resolve_model(output_model)
-    api_key = get_api_key()
+    if model_api_import_name == "local":
+        raw = prompt
+    else:
+        pyd_model = _resolve_model(output_model)
 
-    raw = _post_to_llm(
-        [
-            {"role": "system", "content": f"{pyd_model.model_json_schema()}"},
-            {"role": "user", "content": prompt},
-        ],
-        model_api_import_name,
-    )
-    return _parse_and_validate(raw, pyd_model, api_key=api_key)
+        raw = _post_to_llm(
+            [
+                {"role": "system", "content": f"{pyd_model.model_json_schema()}"},
+                {"role": "user", "content": prompt},
+            ],
+            model_api_import_name,
+        )
+    return _parse_and_validate(raw, pyd_model)
 
 
 def ask_batch(
@@ -118,7 +121,6 @@ def ask_batch(
     複数プロンプトをバッチ処理し、検証済みオブジェクトをリストで返す。
     """
     pyd_model = _resolve_model(output_model)
-    api_key = get_api_key()
 
     results: list[Any] = []
     for p in prompts:
@@ -129,5 +131,5 @@ def ask_batch(
             ],
             model_api_import_name,
         )
-        results.append(_parse_and_validate(raw, pyd_model, api_key=api_key))
+        results.append(_parse_and_validate(raw, pyd_model))
     return results
